@@ -1,0 +1,27 @@
+candidate:
+  name: "Alex Developer"
+  age: 18
+  location: "Moscow"
+  remote_only: true
+  employment: ["full-time", "part-time", "contract", "internship"]
+  experience_years: 0
+  github: "https://github.com/alex-dev-ru"
+  portfolio: "https://alex-dev.ru"
+  truthful_facts:
+    - "React, TypeScript, JavaScript"
+    - "Vite, Next.js, Node.js"
+    - "AI and API integrations"
+    - "SQLite, Drizzle ORM, REST APIs"
+  target_roles:
+    - "Junior Frontend Developer"
+    - "Junior Fullstack Developer"
+    - "React Developer"
+    - "AI Integration Developer"
+  target_salary_rub: 80000
+  languages:
+    russian: native
+    english: "B1 Intermediate"
+  no_go:
+    - "unpaid full-time internship"
+    - "sales"
+    - "mandatory office relocation"

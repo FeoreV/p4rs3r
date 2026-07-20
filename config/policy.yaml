@@ -1,0 +1,10 @@
+policy:
+  min_score: 70
+  review_score: 55
+  max_applications_per_run: 8
+  max_applications_per_day: 12
+  auto_apply: false
+  require_confirmation_for_first_run: true
+  never_answer_unknown_questions: true
+  never_invent_facts: true
+  never_bypass_captcha: true

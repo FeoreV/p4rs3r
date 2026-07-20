@@ -1,0 +1,44 @@
+[
+  {
+    "source": "fixture",
+    "externalId": "fix-101",
+    "title": "Junior Frontend Developer (React, TypeScript)",
+    "company": "TechStart LLC",
+    "url": "https://hh.ru/vacancy/1010001",
+    "salaryText": "80 000 - 100 000 руб.",
+    "location": "Moscow",
+    "isRemote": true,
+    "employmentType": "full-time",
+    "publishedAt": "2026-07-20T09:00:00Z",
+    "description": "Ищем Junior Frontend разработчика в динамично развивающийся проект. Стек: React 18, TypeScript, Vite, TailwindCSS. Требования: понимание React hooks, REST API, верстка, готовность учиться.",
+    "keySkills": ["React", "TypeScript", "Vite", "JavaScript", "REST API"]
+  },
+  {
+    "source": "fixture",
+    "externalId": "fix-102",
+    "title": "Junior Fullstack (Node.js / React)",
+    "company": "DataCloud Solutions",
+    "url": "https://hh.ru/vacancy/1010002",
+    "salaryText": "90 000 руб.",
+    "location": "Moscow",
+    "isRemote": true,
+    "employmentType": "full-time",
+    "publishedAt": "2026-07-20T09:30:00Z",
+    "description": "Требуется начинающий разработчик для поддержки микросервисов на Node.js (Express) и клиентской части на React. Желателен опыт работы с SQLite/PostgreSQL и AI API интеграциями.",
+    "keySkills": ["Node.js", "React", "TypeScript", "Express", "SQLite"]
+  },
+  {
+    "source": "fixture",
+    "externalId": "fix-103",
+    "title": "Senior Lead React Architect",
+    "company": "MegaCorp Corp",
+    "url": "https://hh.ru/vacancy/1010003",
+    "salaryText": "350 000 руб.",
+    "location": "Moscow",
+    "isRemote": false,
+    "employmentType": "full-time",
+    "publishedAt": "2026-07-20T10:00:00Z",
+    "description": "Ищем архитектора с опытом от 7 лет для руководства отделом из 15 инженеров. Релокация в офис обязательна.",
+    "keySkills": ["React", "Architecture", "Management"]
+  }
+]

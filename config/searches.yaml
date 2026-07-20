@@ -1,0 +1,13 @@
+profiles:
+  frontend:
+    keywords: ["React", "TypeScript", "Frontend", "Vite", "Next.js"]
+    area: 113 # Russia
+    schedule: "remote"
+  fullstack:
+    keywords: ["Node.js", "Fullstack", "React", "TypeScript"]
+    area: 113
+    schedule: "remote"
+  ai-integrations:
+    keywords: ["AI Developer", "LLM", "API Integration", "Python", "TypeScript"]
+    area: 113
+    schedule: "remote"

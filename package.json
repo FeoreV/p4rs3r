@@ -1,0 +1,36 @@
+{
+  "name": "ai-job-hunter",
+  "version": "1.0.0",
+  "description": "MVP AI Job Hunter for RU IT Market",
+  "main": "dist/cli.js",
+  "type": "module",
+  "scripts": {
+    "build": "tsc",
+    "setup": "npx tsx src/cli.ts setup",
+    "login": "npx tsx src/cli.ts login",
+    "scan": "npx tsx src/cli.ts scan",
+    "score": "npx tsx src/cli.ts score",
+    "review": "npx tsx src/cli.ts review",
+    "apply": "npx tsx src/cli.ts apply",
+    "report": "npx tsx src/cli.ts report",
+    "weekly": "npx tsx src/cli.ts weekly",
+    "panic-stop": "npx tsx src/cli.ts panic-stop",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "commander": "^13.1.0",
+    "dotenv": "^16.4.7",
+    "fast-xml-parser": "^5.10.1",
+    "playwright": "^1.61.1",
+    "undici": "^7.3.0",
+    "yaml": "^2.9.0",
+    "zod": "^3.25.76"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.12",
+    "@types/node": "^22.20.1",
+    "tsx": "^4.23.1",
+    "typescript": "^5.9.3",
+    "vitest": "^3.2.7"
+  }
+}
