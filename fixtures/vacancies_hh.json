@@ -38,7 +38,50 @@
     "isRemote": false,
     "employmentType": "full-time",
     "publishedAt": "2026-07-20T10:00:00Z",
-    "description": "Ищем архитектора с опытом от 7 лет для руководства отделом из 15 инженеров. Релокация в офис обязательна.",
+    "description": "Ищем архитектора с опытом от 7 лет для руководства отделом из 15 инженеров. Требуется управление командой и коммерческий опыт от 7 лет.",
     "keySkills": ["React", "Architecture", "Management"]
+  },
+  {
+    "source": "fixture",
+    "externalId": "fix-104",
+    "title": "Middle React Developer (In-Office Relocation)",
+    "company": "OfficeOnly Systems",
+    "url": "https://hh.ru/vacancy/1010004",
+    "salaryText": "120 000 руб.",
+    "location": "Astana",
+    "isRemote": false,
+    "employmentType": "full-time",
+    "publishedAt": "2026-07-20T10:30:00Z",
+    "description": "Разработчик в офис. Обязательный офис, mandatory office relocation в Астану. Удаленный формат не рассматриваем.",
+    "keySkills": ["React", "TypeScript"]
+  },
+  {
+    "source": "fixture",
+    "externalId": "fix-105",
+    "title": "Unpaid Full-time Internship & Cold Sales",
+    "company": "ShadyBiz Inc",
+    "url": "https://hh.ru/vacancy/1010005",
+    "salaryText": "0 руб.",
+    "location": "Moscow",
+    "isRemote": true,
+    "employmentType": "internship",
+    "publishedAt": "2026-07-20T11:00:00Z",
+    "description": "Неоплачиваемая стажировка (unpaid full-time internship) по техническим продажам и холодным звонкам (sales). Денег не платим.",
+    "keySkills": ["Sales", "Cold Calls"]
+  },
+  {
+    "source": "fixture",
+    "externalId": "fix-106",
+    "title": "Junior React Developer (Custom Questionnaire)",
+    "company": "Questionnaire Labs",
+    "url": "https://hh.ru/vacancy/1010006",
+    "salaryText": "85 000 руб.",
+    "location": "Saint Petersburg",
+    "isRemote": true,
+    "employmentType": "full-time",
+    "publishedAt": "2026-07-20T11:30:00Z",
+    "description": "Frontend разработчик на React и TypeScript. Обязательное условие — ответ на сложный вопрос работодателя перед просмотром резюме.",
+    "keySkills": ["React", "TypeScript"],
+    "mandatoryQuestions": ["Почему вы хотите у нас работать и согласны ли на 3 этапа собеседований?"]
   }
 ]

@@ -37,8 +37,10 @@ export class FixtureJobSource implements JobSource {
       ...job,
       description: raw?.description || 'No description provided in fixture',
       keySkills: raw?.keySkills || [],
+      mandatoryQuestions: raw?.mandatoryQuestions || [],
     };
   }
+
 
   public capabilities(): SourceCapabilities {
     return { search: true, details: true, apply: true };

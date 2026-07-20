@@ -19,6 +19,7 @@ export async function runScoringPipeline(repository: JobRepository): Promise<{ s
   for (const job of unscored) {
     console.log(`[SCORE] Scoring Job #${job.id}: ${job.title} @ ${job.company}`);
     const scoringResult = await scorer.scoreJob(profile, job);
+    repository.saveScore(job.id!, scoringResult);
 
     let status: QueueStatus = 'rejected';
     if (scoringResult.score >= profile.policy.min_score && scoringResult.recommendation === 'apply') {

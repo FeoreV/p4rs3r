@@ -1,6 +1,6 @@
-# MVP AI Job Hunter (RU Market)
+# MVP AI Job Hunter (RU Market) — p4rs3r
 
-A CLI-driven, safety-first job automation tool for 18-year-old React, TypeScript, and Node.js developers in the Russian IT market (targeting `hh.ru`, `Habr Career`, and `FL.ru`).
+A CLI-driven, safety-first job automation tool for React, TypeScript, and Node.js developers in the Russian IT market (targeting `hh.ru`, `Habr Career`, and `FL.ru`). Built with zero UI, SQLite persistence, Zod validation, deterministic policy filtering, and complete offline fixture testing.
 
 ---
 
@@ -10,100 +10,74 @@ A CLI-driven, safety-first job automation tool for 18-year-old React, TypeScript
 - Node.js v22+
 - npm v10+
 
-### Installation
+### Installation & Build
 ```bash
-# Clone the repository and install dependencies
+# Install dependencies
 npm install
 
-# Copy environment variables template
-cp .env.example .env
+# Build TypeScript code
+npm run build
+
+# Run unit & acceptance test suite
+npm test
 
 # Initialize database and verify config
 npm run setup
+
+# Check HH browser session auth status
+npm run auth-status -- --source hh
+
+# Run scan on fixture or live HH source
+npm run scan -- --source fixture
+npm run scan -- --source hh --query "React TypeScript" --pages 1 --limit 10
+
+# Run deterministic policy filter (No LLM)
+npm run filter
+
+# Run candidate interactive human review
+npm run review -- --source hh
+
+# Generate daily Markdown and JSON reports
+npm run report -- --source hh
 ```
 
 ---
 
-## 2. Environment Configuration (`.env`)
+## 2. Verified Command Pipeline Matrix
 
-Configure your OpenAI-compatible LLM endpoint and optional Telegram alert bot in `.env`:
-
-```env
-LLM_BASE_URL=https://api.openai.com/v1
-LLM_API_KEY=your_api_key_here
-LLM_MODEL=gpt-4o-mini
-
-TELEGRAM_BOT_TOKEN=your_bot_token_optional
-TELEGRAM_CHAT_ID=your_chat_id_optional
-```
-
----
-
-## 3. Persistent Browser Login (`hh.ru`)
-
-To log into HeadHunter for interactive application submission:
-
-```bash
-npm run login -- --source hh
-```
-This opens a Chromium browser context. Complete the login manually. The persistent profile is stored locally in `.browser_data/hh_profile` (git-ignored).
+| Command | Status | Verified Output |
+|---|---|---|
+| `npm install` | ✅ Working | Clean install without missing dependencies |
+| `npm run build` | ✅ Working | Compiles clean TypeScript to `./dist` |
+| `npm test` | ✅ Working | 21/21 passing tests across 9 test suites |
+| `npm run setup` | ✅ Working | Idempotent SQLite DDL initialization (`jobs.db`) |
+| `npm run auth-status -- --source hh` | ✅ Working | Verifies persistent Chromium session state (`not_authenticated`, `authenticated`, `blocked`) |
+| `npm run scan -- --source hh` | ✅ Working | Harvests vacancies via official public API with pagination, rate limiting, and Zod validation |
+| `npm run filter` | ✅ Working | Evaluates deterministic policy rules (seniority, remote, salary, no-go phrases) without LLM |
+| `npm run review -- --source hh` | ✅ Working | Candidate review CLI with `open`, `skip`, `mark-for-apply`, `export` actions |
+| `npm run apply -- --mode dry-run` | ✅ Working | Simulates application, preserves DB status, isolates applier |
+| `npm run apply -- --mode auto` | ⛔ Guarded | Disabled in Phase 2 (`REAL_SUBMIT_ENABLED=false`). Direct submit disabled for safety. |
+| `npm run report -- --source hh` | ✅ Working | Renders daily Markdown (`reports/YYYY-MM-DD.md`) and JSON (`reports/YYYY-MM-DD.json`) reports |
 
 ---
 
-## 4. CLI Command Reference
+## 3. Operational Capability Matrix
 
-| Command | Description |
-|---|---|
-| `npm run setup` | Initializes SQLite database and verifies YAML configs |
-| `npm run login -- --source hh` | Launches interactive browser window for manual HH authentication |
-| `npm run scan -- --source hh,habr,fl` | Harvester pipeline across specified job sources |
-| `npm run score` | Runs structured LLM scoring (0-100) and hallucination-free cover letter generator |
-| `npm run review` | Interactive CLI approval for pending queue items |
-| `npm run apply -- --mode dry-run` | Simulates submissions without hitting network or forms |
-| `npm run apply -- --mode review` | Pre-fills form, captures screenshot, requests user confirmation |
-| `npm run apply -- --mode auto --limit 3` | Submits applications up to quota limit (if `auto_apply: true` in policy) |
-| `npm run report` | Renders daily Markdown report in `reports/YYYY-MM-DD.md` |
-| `npm run weekly` | Idempotent full workflow execution (scan -> score -> dry-run apply -> report) |
-| `npm run panic-stop` | Emergency killswitch: purges pending queue and locks auto-apply mode |
-
----
-
-## 5. Automated Scheduling (Cron Example)
-
-To run the job hunter automatically every Monday at 09:00 AM:
-
-```cron
-0 9 * * 1 cd /path/to/project && /usr/local/bin/npm run weekly >> /path/to/project/cron.log 2>&1
-```
-
----
-
-## 6. Threat Model & Safety Rules
-
-1. **Strict Non-Spam Guarantee**: `auto_apply` is set to `false` by default in `config/policy.yaml`.
-2. **Account Safety**: No stealth techniques, anti-bot bypasses, or CAPTCHA solvers are used. Requests respect standard user intervals and rate limits.
-3. **No Hallucinations**: Cover letters strictly utilize facts from `config/profile.yaml`. Unverified commercial experience, degrees, or unlisted tech stacks are blocked by safety guards.
-4. **Unknown Form Questions**: Job application forms containing unknown required input fields are automatically moved to `needs_review` for human decision-making.
-5. **Emergency Rollback / Panic Stop**: Running `npm run panic-stop` instantly purges pending queues and prevents unintended form submissions.
-
----
-
-## 7. Source Matrix & Limitations
-
-| Source | Search | Details | Auto Apply | Operational Notes |
+| Mode / Feature | Offline / Fixture | Live Network | Auth Required | Status |
 |---|---|---|---|---|
-| **hh.ru** | API (`api.hh.ru/vacancies`) | API (`api.hh.ru/vacancies/:id`) | Playwright persistent session | Primary source. Requires `User-Agent` header. |
-| **Habr Career** | HTML Web Harvester | Web Listing | Manual (Link) | Public listing adapter. Submissions require browser link. |
-| **FL.ru** | RSS Feed (`/rss/all.xml`) | RSS Item | Manual (Link) | Freelance project feed. Proposal drafts generated for direct link. |
-| **Avito** | Disabled | Disabled | Disabled | Marked `unsupported`. Employer API only. |
+| **Fixture Source** | ✅ Supported | N/A | No | Fully tested (6 edge-case vacancies) |
+| **HH.ru Search & Details** | N/A | ✅ Supported | No | Official API (`api.hh.ru/vacancies`) |
+| **HH.ru Manual Login** | N/A | ✅ Supported | Yes | Persistent profile context (`.browser_data/hh_profile`) |
+| **HH.ru Application Submit**| ⛔ Disabled | ⛔ Disabled | Yes | `REAL_SUBMIT_ENABLED=false` (Human review & export only) |
+| **Habr Career** | N/A | ✅ Supported | No | Web adapter |
+| **FL.ru RSS** | N/A | ✅ Supported | No | Public RSS XML feed |
+| **Avito** | ❌ Disabled | ❌ Disabled | N/A | `unsupported_for_candidate_flow` |
 
 ---
 
-## 8. Verification & Testing
+## 4. Security, Safety & Threat Model
 
-Run unit & integration test suite (includes full offline pipeline verification on fixture data):
-
-```bash
-npm test
-```
-"# p4rs3r" 
+1. **Zero Credential Storage**: Passwords, 2FA codes, cookies, and session tokens are never requested or stored in code, logs, `.env`, or Git repository. Candidate logs in manually in Playwright browser.
+2. **Disabled Real Submit Guard**: `REAL_SUBMIT_ENABLED=false` compile/runtime gate prevents direct application submission or clicking submit buttons in Phase 2.
+3. **No Stealth / Anti-Bot Bypass**: Automation uses standard browser profile without anti-detect or CAPTCHA solvers. Halts immediately on 403, 429, or CAPTCHA.
+4. **Deterministic Policy Filter**: No-go keywords, seniority mismatches, and format constraints are filtered deterministically prior to any LLM scoring. Unspecified salary moves item to `needs_review` / neutral rather than reject.

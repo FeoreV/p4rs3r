@@ -2,24 +2,26 @@ import { PolicyConfig } from '../domain/types.js';
 import { JobRepository } from '../db/repositories.js';
 
 export class SafetyLimitGuard {
-  private panicStateLocked = false;
-
   constructor(private repository: JobRepository, private policy: PolicyConfig) {}
 
   public isPanicLocked(): boolean {
-    return this.panicStateLocked;
+    return this.repository.getPanicLock();
   }
 
   public enablePanicStop(): void {
-    this.panicStateLocked = true;
+    this.repository.setPanicLock(true);
     this.repository.logAudit('PANIC_STOP_TRIGGERED', undefined, undefined, {
       message: 'Panic stop activated. Auto-apply disabled and pending queues purged.',
     });
     this.repository.purgePendingQueue();
   }
 
+  public disablePanicStop(): void {
+    this.repository.setPanicLock(false);
+  }
+
   public checkApplicationQuotas(currentRunCount: number): { allowed: boolean; reason?: string } {
-    if (this.panicStateLocked) {
+    if (this.isPanicLocked()) {
       return { allowed: false, reason: 'Panic stop is active' };
     }
 
@@ -28,7 +30,7 @@ export class SafetyLimitGuard {
     }
 
     const todayStr = new Date().toISOString().slice(0, 10);
-    const dailyApplied = this.repository.getDailyAppliedCount(todayStr);
+    const dailyApplied = this.repository.getDailyApplicationCount(todayStr);
 
     if (dailyApplied >= this.policy.max_applications_per_day) {
       return { allowed: false, reason: `Reached daily application limit (${this.policy.max_applications_per_day})` };

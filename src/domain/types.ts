@@ -1,5 +1,23 @@
 import { z } from 'zod';
 
+export type JobStatus =
+  | 'discovered'
+  | 'filtered'
+  | 'scored'
+  | 'needs_review'
+  | 'approved'
+  | 'draft'
+  | 'submitted'
+  | 'failed'
+  | 'unknown'
+  | 'recommended'
+  | 'rejected'
+  | 'applied';
+
+export type QueueStatus = JobStatus;
+
+export type AuthStatus = 'authenticated' | 'not_authenticated' | 'blocked' | 'unknown';
+
 export interface CandidateProfile {
   candidate: {
     name: string;
@@ -36,11 +54,15 @@ export interface RawJob {
   externalId: string;
   title: string;
   company: string;
+  companyUrl?: string;
   url: string;
   salaryText?: string;
   location?: string;
+  areaId?: number;
   isRemote?: boolean;
   employmentType?: string;
+  schedule?: string;
+  experience?: string;
   publishedAt?: string;
   rawPayload?: Record<string, any>;
 }
@@ -50,6 +72,7 @@ export interface JobDetails extends RawJob {
   requirements?: string[];
   responsibilities?: string[];
   keySkills?: string[];
+  mandatoryQuestions?: string[];
 }
 
 export interface NormalizedJob {
@@ -59,16 +82,41 @@ export interface NormalizedJob {
   source: string;
   title: string;
   company: string;
+  companyUrl?: string;
   salaryMin?: number;
   salaryMax?: number;
   salaryCurrency?: string;
+  salaryFrom?: number;
+  salaryTo?: number;
+  currency?: string;
   location: string;
+  areaId?: number;
   isRemote: boolean;
+  remote?: boolean;
   employmentType: string;
+  schedule?: string;
+  experience?: string;
   description: string;
   keySkills: string[];
   publishedAt: string;
   firstSeenAt: string;
+  fetchedAt?: string;
+  updatedAt?: string;
+  alternateUrl?: string;
+  rawPayloadHash?: string;
+  rawPayloadPath?: string;
+  sourceMetadata?: string;
+  status?: JobStatus;
+}
+
+export interface PolicyFilterReason {
+  code: string;
+  message: string;
+}
+
+export interface PolicyFilterResult {
+  decision: 'passed' | 'filtered' | 'needs_review';
+  reasons: PolicyFilterReason[];
 }
 
 export const ScoringResultSchema = z.object({
@@ -87,8 +135,6 @@ export const ScoringResultSchema = z.object({
 
 export type ScoringResult = z.infer<typeof ScoringResultSchema>;
 
-export type QueueStatus = 'recommended' | 'needs_review' | 'rejected' | 'applied' | 'failed';
-
 export interface ApplicationQueueItem {
   id?: number;
   jobId: number;
@@ -104,10 +150,31 @@ export interface ApplicationQueueItem {
 }
 
 export interface SearchQuery {
-  profileName: string;
+  profileName?: string;
   keywords: string[];
   area?: number;
+  page?: number;
+  pages?: number;
+  perPage?: number;
   schedule?: string;
+  remoteOnly?: boolean;
+  since?: string;
+  limit?: number;
+  noDetails?: boolean;
+}
+
+export interface ScanOptions {
+  sources?: string[];
+  query?: string;
+  area?: number;
+  page?: number;
+  pages?: number;
+  perPage?: number;
+  remoteOnly?: boolean;
+  since?: string;
+  limit?: number;
+  noDetails?: boolean;
+  json?: boolean;
 }
 
 export interface SourceCapabilities {
@@ -122,3 +189,5 @@ export interface JobSource {
   getDetails(job: RawJob): Promise<JobDetails>;
   capabilities(): SourceCapabilities;
 }
+
+

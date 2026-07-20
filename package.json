@@ -8,7 +8,9 @@
     "build": "tsc",
     "setup": "npx tsx src/cli.ts setup",
     "login": "npx tsx src/cli.ts login",
+    "auth-status": "npx tsx src/cli.ts auth-status",
     "scan": "npx tsx src/cli.ts scan",
+    "filter": "npx tsx src/cli.ts filter",
     "score": "npx tsx src/cli.ts score",
     "review": "npx tsx src/cli.ts review",
     "apply": "npx tsx src/cli.ts apply",
@@ -17,6 +19,7 @@
     "panic-stop": "npx tsx src/cli.ts panic-stop",
     "test": "vitest run"
   },
+
   "dependencies": {
     "commander": "^13.1.0",
     "dotenv": "^16.4.7",

@@ -26,4 +26,8 @@ export class AuditLogger {
   public recordPanicStop(): void {
     this.repository.logAudit('PANIC_STOP_ACTIVATED', undefined, undefined, { timestamp: new Date().toISOString() });
   }
+
+  public recordAuditEvent(action: string, jobId?: number, jobUrl?: string, details?: Record<string, any>): void {
+    this.repository.recordAuditEvent(action, jobId, jobUrl, details);
+  }
 }

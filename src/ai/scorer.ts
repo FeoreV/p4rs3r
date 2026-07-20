@@ -7,39 +7,43 @@ export class LLMScorer {
 
   public async scoreJob(profile: CandidateProfile, job: NormalizedJob): Promise<ScoringResult> {
     const prompt = buildScoringPrompt(profile, job);
-    
+
     try {
       const rawResponse = await this.llmClient.completeJSON(prompt, SCORING_SYSTEM_PROMPT);
-      
-      // Clean JSON string in case of backticks or whitespace
-      let cleaned = rawResponse.trim();
-      if (cleaned.startsWith('```json')) {
-        cleaned = cleaned.slice(7);
-      }
-      if (cleaned.startsWith('```')) {
-        cleaned = cleaned.slice(3);
-      }
-      if (cleaned.endsWith('```')) {
-        cleaned = cleaned.slice(0, -3);
-      }
-      cleaned = cleaned.trim();
-
+      const cleaned = this.extractJSONString(rawResponse);
       const parsed = JSON.parse(cleaned);
       const validated = ScoringResultSchema.parse(parsed);
       return validated;
     } catch (error: any) {
-      console.warn(`Scoring failed for job ${job.id} (${job.title}): ${error.message}`);
-      // Fallback heuristic scoring result if LLM parsing/network fails
+      console.warn(`Scoring failed for job ${job.id || 'N/A'} (${job.title}): ${error.message}`);
       return this.fallbackHeuristicScoring(profile, job, error.message);
     }
   }
 
+  public extractJSONString(raw: string): string {
+    let text = raw.trim();
+
+    // Match JSON inside code fence ```json ... ``` or ``` ... ```
+    const fenceMatch = text.match(/```(?:json)?\s*([\s\S]*?)\s*```/i);
+    if (fenceMatch) {
+      text = fenceMatch[1].trim();
+    }
+
+    // Match JSON object {...}
+    const objectMatch = text.match(/\{[\s\S]*\}/);
+    if (objectMatch) {
+      return objectMatch[0].trim();
+    }
+
+    return text;
+  }
+
   private fallbackHeuristicScoring(profile: CandidateProfile, job: NormalizedJob, errorMsg: string): ScoringResult {
     const textLower = `${job.title} ${job.description}`.toLowerCase();
-    
+
     // Check no-go terms
     const hasNoGo = profile.candidate.no_go.some((term) => textLower.includes(term.toLowerCase()));
-    const isSenior = textLower.includes('senior') || textLower.includes('lead');
+    const isSenior = textLower.includes('senior') || textLower.includes('lead') || textLower.includes('architect');
 
     let score = 50;
     if (hasNoGo) score -= 40;
@@ -53,7 +57,7 @@ export class LLMScorer {
       recommendation: score >= 70 ? 'apply' : score >= 55 ? 'review' : 'reject',
       skill_match: 60,
       seniority_match: isSenior ? 20 : 70,
-      format_match: job.isRemote ? 100 : 50,
+      format_match: job.isRemote || job.remote ? 100 : 50,
       salary_match: 50,
       growth_signal: 60,
       reasons: [`Fallback heuristic used due to scoring error: ${errorMsg}`],

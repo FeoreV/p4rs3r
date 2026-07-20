@@ -1,7 +1,10 @@
-import { chromium, BrowserContext, Page } from 'playwright';
+import { chromium, BrowserContext } from 'playwright';
 import { existsSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
-import { ApplicationQueueItem, NormalizedJob } from '../../domain/types.js';
+import { ApplicationQueueItem, NormalizedJob, AuthStatus } from '../../domain/types.js';
+import { HH_SELECTORS } from './hh.selectors.js';
+
+export const REAL_SUBMIT_ENABLED = false;
 
 export interface ApplyOptions {
   mode: 'dry-run' | 'review' | 'auto';
@@ -11,16 +14,17 @@ export interface ApplyOptions {
 export class HHPlaywrightApplier {
   private userDataDir: string;
 
-  constructor(userDataDir = './.browser_data/hh_profile') {
+  constructor(userDataDir = process.env.HH_PROFILE_DIR || './.browser_data/hh_profile') {
     this.userDataDir = userDataDir;
   }
 
-  public async loginInteractive(): Promise<void> {
+  public async loginInteractive(timeoutMs = 120000): Promise<boolean> {
     if (!existsSync(this.userDataDir)) {
       mkdirSync(this.userDataDir, { recursive: true });
     }
 
     console.log('[PLAYWRIGHT] Launching browser context for manual HH.ru login...');
+    console.log('[PLAYWRIGHT] Profile path:', this.userDataDir);
     console.log('[PLAYWRIGHT] Please complete login in the opened browser window.');
 
     const context = await chromium.launchPersistentContext(this.userDataDir, {
@@ -28,13 +32,93 @@ export class HHPlaywrightApplier {
       viewport: { width: 1280, height: 800 },
     });
 
-    const page = await context.newPage();
-    await page.goto('https://hh.ru/account/login');
-    console.log('[PLAYWRIGHT] Waiting 60 seconds for user authentication...');
-    await page.waitForTimeout(60000);
+    try {
+      const page = await context.newPage();
+      await page.goto(HH_SELECTORS.loginUrl, { waitUntil: 'domcontentloaded' });
+      console.log('[PLAYWRIGHT] Waiting for user authentication (up to 2 minutes)...');
 
-    await context.close();
-    console.log('[PLAYWRIGHT] Persistent browser profile saved successfully.');
+      const startTime = Date.now();
+      let authed = false;
+
+      while (Date.now() - startTime < timeoutMs) {
+        const isAuthed = await page.locator(HH_SELECTORS.mainMenuApplicant).isVisible().catch(() => false);
+        const url = page.url();
+        if (isAuthed || url.includes('/applicant/') || url.includes('/resumes')) {
+          authed = true;
+          break;
+        }
+        await page.waitForTimeout(3000);
+      }
+
+      await context.close();
+
+      if (authed) {
+        console.log('[PLAYWRIGHT] Login confirmed! Persistent browser profile saved.');
+        return true;
+      } else {
+        console.warn('[PLAYWRIGHT] Login not confirmed within timeout.');
+        return false;
+      }
+    } catch (err: any) {
+      await context.close().catch(() => {});
+      console.error('[PLAYWRIGHT] Error during interactive login:', err.message);
+      return false;
+    }
+  }
+
+  public async getSessionStatus(): Promise<AuthStatus> {
+    if (!existsSync(this.userDataDir)) {
+      return 'not_authenticated';
+    }
+
+    let context: BrowserContext | null = null;
+    try {
+      context = await chromium.launchPersistentContext(this.userDataDir, {
+        headless: true,
+        viewport: { width: 1280, height: 800 },
+      });
+
+      const page = await context.newPage();
+      const response = await page.goto(HH_SELECTORS.profileUrl, { waitUntil: 'domcontentloaded', timeout: 15000 });
+
+      if (response && (response.status() === 403 || response.status() === 429)) {
+        await context.close();
+        return 'blocked';
+      }
+
+      const blockedText = await page.locator(HH_SELECTORS.error403Or429).isVisible().catch(() => false);
+      if (blockedText) {
+        await context.close();
+        return 'blocked';
+      }
+
+      const captchaDetected = await page.locator(HH_SELECTORS.captchaFrame).isVisible().catch(() => false);
+      if (captchaDetected) {
+        await context.close();
+        return 'blocked';
+      }
+
+      const hasApplicantMenu = await page.locator(HH_SELECTORS.mainMenuApplicant).isVisible().catch(() => false);
+      const url = page.url();
+
+      await context.close();
+
+      if (hasApplicantMenu || url.includes('/applicant/') || url.includes('/resumes')) {
+        return 'authenticated';
+      }
+
+      return 'not_authenticated';
+    } catch {
+      if (context) {
+        await context.close().catch(() => {});
+      }
+      return 'unknown';
+    }
+  }
+
+  public async isAuthenticated(): Promise<boolean> {
+    const status = await this.getSessionStatus();
+    return status === 'authenticated';
   }
 
   public async applyToJob(
@@ -46,6 +130,14 @@ export class HHPlaywrightApplier {
       console.log(`[DRY-RUN] Simulating application for Job #${job.id}: ${job.title} @ ${job.company}`);
       console.log(`[DRY-RUN] Cover letter text:\n${queueItem.coverLetterText}`);
       return { success: true };
+    }
+
+    if (options.mode === 'auto' || !REAL_SUBMIT_ENABLED) {
+      console.warn('[SAFETY GUARD] Real submission is disabled in this phase. Only read-only harvest and human review are available.');
+      return {
+        success: false,
+        error: 'Real submission is disabled in this phase. Only read-only harvest and human review are available.',
+      };
     }
 
     if (!existsSync(this.userDataDir)) {
@@ -68,49 +160,21 @@ export class HHPlaywrightApplier {
 
       const page = await context.newPage();
       console.log(`[PLAYWRIGHT] Navigating to vacancy URL: ${job.canonicalUrl}`);
-      await page.goto(job.canonicalUrl, { waitUntil: 'domcontentloaded', timeout: 30000 });
+      const response = await page.goto(job.canonicalUrl, { waitUntil: 'domcontentloaded', timeout: 30000 });
+
+      if (response && (response.status() === 403 || response.status() === 429)) {
+        throw new Error(`Rate limit or access block detected (HTTP ${response.status()}). Halting execution immediately.`);
+      }
 
       await page.screenshot({ path: screenshotPath, fullPage: true });
 
-      // Look for apply button (HH vacancy apply button selectors)
-      const respondButton = page.locator('a[data-qa="vacancy-response-link-top"], button[data-qa="vacancy-response-link-top"]').first();
-      const hasRespondButton = await respondButton.isVisible().catch(() => false);
-
-      if (!hasRespondButton) {
-        throw new Error('Vacancy application button not found or already applied.');
+      const captchaDetected = await page.locator(HH_SELECTORS.captchaFrame).isVisible().catch(() => false);
+      if (captchaDetected) {
+        throw new Error('CAPTCHA challenge detected on page. Automated bypass prohibited; halting application.');
       }
 
       if (options.mode === 'review') {
-        console.log(`[REVIEW MODE] Renders application page for Job #${job.id}. Screenshot saved at ${screenshotPath}`);
-        await context.close();
-        return { success: true, screenshotPath };
-      }
-
-      if (options.mode === 'auto') {
-        console.log(`[AUTO MODE] Clicking apply button for Job #${job.id}...`);
-        await respondButton.click();
-        await page.waitForTimeout(2000);
-        await page.screenshot({ path: screenshotPath });
-
-        // If cover letter textarea is visible, fill it
-        const letterTextarea = page.locator('textarea[data-qa="vacancy-response-popup-form-letter-input"]').first();
-        if (await letterTextarea.isVisible().catch(() => false)) {
-          await letterTextarea.fill(queueItem.coverLetterText || '');
-        }
-
-        // Check for unknown mandatory questions
-        const mandatoryQuestions = page.locator('.vacancy-response-popup__question--required');
-        const questionCount = await mandatoryQuestions.count().catch(() => 0);
-        if (questionCount > 0) {
-          throw new Error(`Vacancy requires answering ${questionCount} unknown mandatory question(s). Moved to needs_review.`);
-        }
-
-        const submitBtn = page.locator('button[data-qa="vacancy-response-submit-popup"]').first();
-        if (await submitBtn.isVisible().catch(() => false)) {
-          await submitBtn.click();
-          await page.waitForTimeout(3000);
-        }
-
+        console.log(`[REVIEW MODE] Rendered vacancy page for Job #${job.id}. Screenshot saved at ${screenshotPath}`);
         await context.close();
         return { success: true, screenshotPath };
       }
@@ -125,3 +189,4 @@ export class HHPlaywrightApplier {
     }
   }
 }
+

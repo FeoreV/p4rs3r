@@ -14,7 +14,20 @@ export class CoverLetterGenerator {
 
     try {
       const result = await this.llmClient.completeJSON(prompt);
-      const text = result.replace(/^"|"$/g, '').trim();
+      let text = result.trim();
+
+      try {
+        const parsed = JSON.parse(text);
+        if (typeof parsed === 'string') {
+          text = parsed;
+        } else if (parsed && typeof parsed.letter === 'string') {
+          text = parsed.letter;
+        }
+      } catch {
+        // Plain text response, leave as is
+      }
+
+      text = text.replace(/^"|"$/g, '').trim();
 
       // Verify facts guard (non-hallucination check)
       this.verifyNoHallucinatedFacts(profile, text);

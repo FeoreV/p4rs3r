@@ -8,7 +8,7 @@ import { HabrJobSource } from '../sources/habr/habr.search.js';
 import { FLRssJobSource } from '../sources/fl/fl.rss.js';
 import { AvitoJobSource } from '../sources/avito/avito.search.js';
 import { mapHHDetailsToNormalized } from '../sources/hh/hh.mapper.js';
-import { CandidateProfile, SearchQuery, NormalizedJob } from '../domain/types.js';
+import { CandidateProfile, SearchQuery, NormalizedJob, ScanOptions } from '../domain/types.js';
 import { normalizeCanonicalUrl } from '../domain/dedupe.js';
 import { AuditLogger } from '../safety/audit.js';
 
@@ -52,12 +52,26 @@ export function loadSearchesConfig(searchesPath = './config/searches.yaml'): Rec
   return parsed.profiles || parsed;
 }
 
+export interface ScanResultStats {
+  foundCount: number;
+  insertedCount: number;
+  fetched: number;
+  inserted: number;
+  updated: number;
+  skipped: number;
+  failed: number;
+  blocked: number;
+}
+
+
 export async function runScanPipeline(
   repository: JobRepository,
-  sourceNames: string[] = ['hh', 'habr', 'fl']
-): Promise<{ foundCount: number; insertedCount: number }> {
+  sourceNames: string[] = ['hh', 'habr', 'fl'],
+  options: ScanOptions = {}
+): Promise<ScanResultStats> {
   const audit = new AuditLogger(repository);
-  audit.recordScanStart(sourceNames);
+  const targetSources = options.sources && options.sources.length > 0 ? options.sources : sourceNames;
+  audit.recordScanStart(targetSources);
 
   const registry = new SourceRegistry();
   registry.register(new FixtureJobSource());
@@ -66,11 +80,59 @@ export async function runScanPipeline(
   registry.register(new FLRssJobSource());
   registry.register(new AvitoJobSource());
 
-  const enabledSources = registry.getEnabled(sourceNames);
+  const enabledSources = registry.getEnabled(targetSources);
   const searchProfiles = loadSearchesConfig();
 
-  let totalFound = 0;
-  let totalInserted = 0;
+  const stats: ScanResultStats = {
+    foundCount: 0,
+    insertedCount: 0,
+    fetched: 0,
+    inserted: 0,
+    updated: 0,
+    skipped: 0,
+    failed: 0,
+    blocked: 0,
+  };
+
+
+  const queriesToRun: { profileName: string; query: SearchQuery }[] = [];
+
+  if (options.query) {
+    const keywords = options.query.split(/\s+/).filter(Boolean);
+    queriesToRun.push({
+      profileName: 'cli-query',
+      query: {
+        keywords,
+        area: options.area ?? 113,
+        page: options.page ?? 0,
+        pages: options.pages ?? 1,
+        perPage: options.perPage ?? options.limit ?? 10,
+        limit: options.limit,
+        remoteOnly: options.remoteOnly,
+        since: options.since,
+        noDetails: options.noDetails,
+      },
+    });
+  } else {
+    for (const [pName, pConfig] of Object.entries<any>(searchProfiles)) {
+      queriesToRun.push({
+        profileName: pName,
+        query: {
+          profileName: pName,
+          keywords: pConfig.keywords || ['React'],
+          area: options.area ?? pConfig.area,
+          page: options.page ?? 0,
+          pages: options.pages ?? 1,
+          perPage: options.perPage ?? options.limit ?? 10,
+          schedule: pConfig.schedule,
+          limit: options.limit,
+          remoteOnly: options.remoteOnly,
+          since: options.since,
+          noDetails: options.noDetails,
+        },
+      });
+    }
+  }
 
   for (const source of enabledSources) {
     if (!source.capabilities().search) {
@@ -78,34 +140,67 @@ export async function runScanPipeline(
       continue;
     }
 
-    for (const [pName, pConfig] of Object.entries<any>(searchProfiles)) {
-      const query: SearchQuery = {
-        profileName: pName,
-        keywords: pConfig.keywords || ['React'],
-        area: pConfig.area,
-        schedule: pConfig.schedule,
-      };
+    for (const { profileName, query } of queriesToRun) {
+      console.log(`[SCAN] Searching source "${source.name}" for profile "${profileName}" (keywords: "${query.keywords.join(' ')}")...`);
+      try {
+        const rawJobs = await source.search(query);
+        stats.fetched += rawJobs.length;
 
-      console.log(`[SCAN] Searching source ${source.name} for profile "${pName}"...`);
-      const rawJobs = await source.search(query);
-      totalFound += rawJobs.length;
+        for (const raw of rawJobs) {
+          const canonicalUrl = normalizeCanonicalUrl(raw.url);
+          const isDup = repository.isDuplicate(raw.source, raw.externalId, canonicalUrl);
 
-      for (const raw of rawJobs) {
-        const canonicalUrl = normalizeCanonicalUrl(raw.url);
+          try {
+            let normalized: NormalizedJob;
+            if (query.noDetails) {
+              normalized = {
+                canonicalUrl,
+                externalId: raw.externalId,
+                source: raw.source,
+                title: raw.title,
+                company: raw.company,
+                location: raw.location || 'Unknown',
+                isRemote: Boolean(raw.isRemote),
+                employmentType: raw.employmentType || 'full-time',
+                description: raw.title,
+                keySkills: [],
+                publishedAt: raw.publishedAt || new Date().toISOString(),
+                firstSeenAt: new Date().toISOString(),
+              };
+            } else {
+              const details = await source.getDetails(raw);
+              normalized = mapHHDetailsToNormalized(details);
+            }
 
-        if (repository.isDuplicate(raw.source, raw.externalId, canonicalUrl)) {
-          continue;
+            const newId = repository.upsertJob(normalized);
+            if (isDup) {
+              stats.updated++;
+            } else {
+              stats.inserted++;
+            }
+          } catch (err: any) {
+            stats.failed++;
+            console.warn(`[SCAN] Failed processing job ${raw.externalId}: ${err.message}`);
+          }
         }
-
-        const details = await source.getDetails(raw);
-        const normalized: NormalizedJob = mapHHDetailsToNormalized(details);
-        repository.saveVacancy(normalized);
-        totalInserted++;
+      } catch (err: any) {
+        if (err.message?.includes('403') || err.message?.includes('429') || err.message?.includes('blocked')) {
+          stats.blocked++;
+        } else {
+          stats.failed++;
+        }
+        console.warn(`[SCAN] Error scanning source ${source.name}: ${err.message}`);
       }
     }
   }
 
-  audit.recordScanComplete(totalFound, totalInserted);
-  console.log(`[SCAN] Pipeline complete. Found ${totalFound} raw jobs, inserted ${totalInserted} new vacancies.`);
-  return { foundCount: totalFound, insertedCount: totalInserted };
+  stats.foundCount = stats.fetched;
+  stats.insertedCount = stats.inserted;
+
+  audit.recordScanComplete(stats.fetched, stats.inserted);
+  console.log(`[SCAN] Pipeline complete. Summary: Fetched ${stats.fetched}, Inserted ${stats.inserted}, Updated ${stats.updated}, Skipped ${stats.skipped}, Failed ${stats.failed}, Blocked ${stats.blocked}.`);
+
+  return stats;
 }
+
+

@@ -61,4 +61,23 @@ describe('LLM Scorer & Schema Validation', () => {
     expect(result.recommendation).toBeDefined();
     expect(result.reasons[0]).toContain('Fallback heuristic');
   });
+
+  it('extracts JSON from markdown code fences', () => {
+    const scorer = new LLMScorer();
+    const markdownInput = '```json\n{"score": 85, "recommendation": "apply"}\n```';
+    const extracted = scorer.extractJSONString(markdownInput);
+    expect(extracted).toBe('{"score": 85, "recommendation": "apply"}');
+  });
+
+  it('falls back to heuristic when LLM returns invalid json or out-of-range score', async () => {
+    const mockLLM = {
+      completeJSON: async () => '{"score": 150, "recommendation": "unknown_value"}',
+    } as any;
+
+    const scorer = new LLMScorer(mockLLM);
+    const result = await scorer.scoreJob(dummyProfile, dummyJob);
+
+    expect(result.score).toBeLessThanOrEqual(100);
+    expect(['apply', 'review', 'reject']).toContain(result.recommendation);
+  });
 });
